@@ -8,7 +8,7 @@ Gärten und eine eigene Geschichte — Block für Block gebaut.
 Die ganze Seite ist ein Spaziergang: Beim Scrollen geht die Kamera durch ein Torii-Tor und
 einen Steinpfad unter blühenden Kirschbäumen entlang, während die Inhalte darüber gleiten.
 
-**Live:** [mc.siggidy.dev](https://mc.siggidy.dev) · [sieder2009.github.io/mc-website](https://sieder2009.github.io/mc-website/)
+**Live:** [mc.siggidy.dev](https://mc.siggidy.dev) · [sieder2009.github.io/mc](https://sieder2009.github.io/mc/)
 
 ## Was die Seite kann
 
