@@ -28,6 +28,14 @@ export default function WorldSection({ world, worldHistory, builds, level, onOpe
 
   const downloadUrl = (world.downloadUrl || "").trim();
   const downloadSize = (world.downloadSize || "").trim();
+  const requestEmail = (world.requestEmail || "").trim();
+
+  function handleRequestClick(e) {
+    e.preventDefault();
+    const [user, domain] = requestEmail.split("@");
+    const subject = encodeURIComponent(`Anfrage: ${world.name || "Welt"}`);
+    window.location.href = `mailto:${user}@${domain}?subject=${subject}`;
+  }
 
   return (
     <section
@@ -52,7 +60,7 @@ export default function WorldSection({ world, worldHistory, builds, level, onOpe
 
         {world.description && <p className="world-description">{world.description}</p>}
 
-        {downloadUrl && (
+        {downloadUrl ? (
           <a
             className="btn btn--primary world-download"
             href={downloadUrl}
@@ -63,7 +71,12 @@ export default function WorldSection({ world, worldHistory, builds, level, onOpe
             <span>Welt herunterladen</span>
             {downloadSize && <span className="world-download__size">({downloadSize})</span>}
           </a>
-        )}
+        ) : requestEmail ? (
+          <a className="btn btn--primary world-download" href="#" onClick={handleRequestClick}>
+            <span>Welt per E-Mail anfragen</span>
+            {downloadSize && <span className="world-download__size">({downloadSize})</span>}
+          </a>
+        ) : null}
 
         <h3>Zeitleiste</h3>
         <Timeline entries={worldHistory} />

@@ -38,7 +38,7 @@ export const content = {
 
   // --- Meine Welt --------------------------------------------------------
   world: {
-    name: "", // z. B. "Neuland" — Name der Welt
+    name: "SiggidyWorld", // Name der Welt
     version: "1.21.11",
     modloader: "Fabric",
     gamemode: "Survival",
@@ -52,7 +52,13 @@ export const content = {
     // als GitHub-Release hoch und trage hier den Link ein.
     // Leer/null lassen, um den Download-Button auszublenden.
     downloadUrl: null,
-    downloadSize: "", // optional, z. B. "1.4 GB" — wird neben dem Button angezeigt
+    downloadSize: "11 GB", // optional, z. B. "1.4 GB" — wird neben dem Button angezeigt
+
+    // Ohne downloadUrl: Wer die Welt haben möchte, schreibt eine E-Mail an diese
+    // Adresse. Zeigt den Button "Welt per E-Mail anfragen". Wie beim Kontakt wird
+    // die Adresse erst im Browser zusammengebaut (Spam-Schutz).
+    // Leer lassen, um den Button auszublenden.
+    requestEmail: "johannsieder453@gmail.com",
   },
 
   // Zeitleiste der Weltgeschichte. Ein Eintrag pro Meilenstein.
@@ -190,7 +196,7 @@ export const content = {
   stats: [
     { label: "Spieltage", value: 1000, suffix: "" },
     { label: "Bauwerke", value: 8, suffix: "" },
-    { label: "Weltgröße", value: null, suffix: " Blöcke" },
+    { label: "Weltgröße", value: 11, suffix: " GB" },
   ],
 
   // --- Modrinth ---------------------------------------------------------------
