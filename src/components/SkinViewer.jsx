@@ -1,16 +1,71 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Raycaster, Vector2 } from "three";
 import { SkinViewer as SkinView3D } from "skinview3d";
+import Wardrobe from "./Wardrobe.jsx";
 import { skinUrlFor } from "../lib/skin.js";
+import { armorToOutfit, normalizeArmor } from "../lib/armor.js";
+import { listCapes } from "../lib/capes.js";
+import { useMinecraftProfile } from "../hooks/useMinecraftProfile.js";
+import { usePlayerOutfit } from "../hooks/usePlayerOutfit.js";
 
 const DEFAULT_SKIN_URL = skinUrlFor("MHF_Steve");
+const ARMOR_STORAGE_KEY = "skin-armor";
 
-export default function SkinViewer({ minecraftName }) {
+function loadArmor(fallback) {
+  try {
+    const stored = localStorage.getItem(ARMOR_STORAGE_KEY);
+    if (stored) return normalizeArmor(JSON.parse(stored));
+  } catch {
+    // private window / blocked storage: just start from content.js
+  }
+  return normalizeArmor(fallback);
+}
+
+function isShown(object) {
+  for (let o = object; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
+export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedCapes, armor: defaultArmor }) {
   const canvasRef = useRef(null);
-  const viewerRef = useRef(null);
+  const profileBtnRef = useRef(null);
+  const openerRef = useRef(null);
+  const [viewer, setViewer] = useState(null);
   const [status, setStatus] = useState("Lade Skin …");
   const [ariaLabel, setAriaLabel] = useState("3D-Vorschau des Minecraft-Skins");
   const [rotating, setRotating] = useState(true);
   const [available, setAvailable] = useState(true);
+
+  const { status: profileStatus, profile } = useMinecraftProfile(minecraftName, minecraftUuid);
+  const [armor, setArmor] = useState(() => loadArmor(defaultArmor));
+  const outfit = useMemo(() => armorToOutfit(armor), [armor]);
+  // undefined = whatever cape is worn in-game, null = none, else a tried-on hash
+  const [capeChoice, setCapeChoice] = useState(undefined);
+  const wornCape = profile?.capeHash ?? null;
+  const capeHash = capeChoice === undefined ? wornCape : capeChoice;
+  const capes = useMemo(() => listCapes(ownedCapes, wornCape), [ownedCapes, wornCape]);
+  const [wardrobeTab, setWardrobeTab] = useState(null); // null = closed
+
+  usePlayerOutfit(viewer, { outfit, capeHash });
+
+  function changeArmor(next) {
+    setArmor(next);
+    try {
+      localStorage.setItem(ARMOR_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // not saved — the choice still applies for this visit
+    }
+  }
+
+  const openWardrobe = useCallback((tab) => {
+    openerRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : profileBtnRef.current;
+    setWardrobeTab(tab);
+  }, []);
+
+  const closeWardrobe = useCallback(() => {
+    setWardrobeTab(null);
+    openerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -39,7 +94,7 @@ export default function SkinViewer({ minecraftName }) {
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     viewer.autoRotateSpeed = 0.6;
-    viewerRef.current = viewer;
+    setViewer(viewer);
 
     function syncRotateState(autoRotate) {
       viewer.autoRotate = autoRotate;
@@ -72,12 +127,53 @@ export default function SkinViewer({ minecraftName }) {
 
     return () => {
       motionQuery.removeEventListener("change", onMotionChange);
+      setViewer(null);
       viewer.dispose();
     };
   }, [minecraftName]);
 
+  // Clicking the character opens the profile. Dragging turns the model, so
+  // only a press that barely moved counts as a click.
+  useEffect(() => {
+    if (!viewer) return;
+    const canvas = viewer.canvas;
+    const raycaster = new Raycaster();
+    const pointer = new Vector2();
+    let down = null;
+
+    function hitsPlayer(e) {
+      const rect = canvas.getBoundingClientRect();
+      pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      raycaster.setFromCamera(pointer, viewer.camera);
+      return raycaster.intersectObject(viewer.playerObject, true).some((hit) => isShown(hit.object));
+    }
+    const onDown = (e) => (down = { x: e.clientX, y: e.clientY });
+    const onUp = (e) => {
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && hitsPlayer(e)) {
+        openerRef.current = profileBtnRef.current;
+        setWardrobeTab("profile");
+      }
+      down = null;
+    };
+    const onMove = (e) => {
+      if (e.pointerType === "mouse" && e.buttons === 0) canvas.style.cursor = hitsPlayer(e) ? "pointer" : "";
+    };
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointermove", onMove);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointermove", onMove);
+    };
+  }, [viewer]);
+
+  // the dialog has its own model — no need to draw this one underneath
+  useEffect(() => {
+    if (viewer) viewer.renderPaused = Boolean(wardrobeTab);
+  }, [viewer, wardrobeTab]);
+
   function toggleRotate() {
-    const viewer = viewerRef.current;
     if (!viewer) return;
     viewer.autoRotate = !viewer.autoRotate;
     setRotating(viewer.autoRotate);
@@ -93,6 +189,7 @@ export default function SkinViewer({ minecraftName }) {
           height={460}
           role="img"
           aria-label={ariaLabel}
+          title="Anklicken für Profil, UUID und Capes"
         />
       </div>
       <div className="skin-panel__side">
@@ -109,9 +206,37 @@ export default function SkinViewer({ minecraftName }) {
             >
               {rotating ? "Drehung pausieren" : "Drehung fortsetzen"}
             </button>
+            <button type="button" className="btn btn--small" onClick={() => openWardrobe("armor")}>
+              Rüstung
+            </button>
+            <button
+              type="button"
+              className="btn btn--small"
+              ref={profileBtnRef}
+              onClick={() => openWardrobe("profile")}
+            >
+              Profil
+            </button>
           </div>
         )}
       </div>
+
+      {wardrobeTab && (
+        <Wardrobe
+          tab={wardrobeTab}
+          onTabChange={setWardrobeTab}
+          onClose={closeWardrobe}
+          minecraftName={minecraftName}
+          profileStatus={profileStatus}
+          profile={profile}
+          capes={capes}
+          capeHash={capeHash}
+          onCapeChange={setCapeChoice}
+          armor={armor}
+          onArmorChange={changeArmor}
+          outfit={outfit}
+        />
+      )}
     </div>
   );
 }

@@ -15,7 +15,12 @@ einen Steinpfad unter blühenden Kirschbäumen entlang, während die Inhalte dar
 - **3D-Welt im Hintergrund** — Torii, Sandō (Steinpfad) mit Laternen, Sakura-Bäume und
   fallende Blütenblätter, gebaut mit React Three Fiber. Wird erst nachgeladen, wenn sie
   gebraucht wird, und auf Handys automatisch abgespeckt.
-- **3D-Skin-Viewer** — mein Minecraft-Skin (`affenmal`) zum Drehen, geladen über mc-heads.net.
+- **3D-Skin-Viewer** — mein Minecraft-Skin (`affenmal`) zum Drehen, geladen über mc-heads.net,
+  mit dem Cape, das ich gerade trage.
+- **Rüstung anlegen** — Material (Leder bis Netherit und Kupfer), einzelne Teile, alle
+  Schmiedevorlagen und Besatz-Materialien, mit den Original-Texturen aus dem Spiel.
+- **Profil** — ein Klick auf den Charakter zeigt UUID, Skin-Modell und meine Capes zum
+  Anprobieren (live über playerdb.co, weil Mojangs API im Browser nicht erreichbar ist).
 - **Meine Welt** — Steckbrief der Welt (Version, Modloader, Spielmodus), eine Zeitleiste mit
   den Meilensteinen und eine Galerie der Bauwerke mit Lightbox und Koordinaten.
 - **Statistiken** — hochzählende Kennzahlen wie Spieltage und Anzahl Bauwerke.
@@ -62,6 +67,9 @@ werden sauber ausgeblendet oder durch einen Platzhalter ersetzt.
 | `links`            | GitHub- und Modrinth-Links im Footer                       |
 | `hero`             | Texte neben dem Skin, optional Hintergrundbild oder -video |
 | `minecraftName`    | Minecraft-Name für Skin-Viewer und Tab-Icon                |
+| `minecraftUuid`    | UUID als Ersatz, falls die Live-Abfrage ausfällt           |
+| `capes`            | Capes, die ich besitze (Namen siehe `src/lib/capes.js`)    |
+| `armor`            | Rüstung, die Besucher zuerst am Skin sehen                 |
 | `world`            | Version, Modloader, Spielmodus, Beschreibung, Download     |
 | `worldHistory`     | Zeitleiste — ein Eintrag `{ date, title, text }` pro Meilenstein |
 | `builds`           | Galerie — Titel, Beschreibung, Koordinaten, Bild           |
@@ -77,6 +85,12 @@ werden sauber ausgeblendet oder durch einen Platzhalter ersetzt.
 3. `node scripts/process-screenshots.mjs` ausführen — das Bild wird auf max. 1600 px Breite
    verkleinert und als WebP nach `public/assets/screenshots/` gespeichert.
 4. Das Bild in `content.js` bei `builds` eintragen.
+
+### Rüstungs-Texturen aktualisieren
+
+Die Rüstungs-, Besatz- und Item-Texturen in `public/assets/mc/` stammen aus dem Minecraft-Client.
+Für eine neue Version die Client-`.jar` entpacken und
+`node scripts/extract-armor-textures.mjs <entpackter-Ordner>` ausführen.
 
 ## Deployment
 
@@ -101,10 +115,11 @@ mc-website/
 │   ├── components/             # Abschnitte und UI-Bausteine
 │   │   └── three/              # 3D-Welt: Torii, Pfad, Sakura, Blütenblätter
 │   ├── hooks/                  # z. B. useModrinth, useReveal, useCounter
-│   ├── lib/                    # Helfer: Animation, Skin-URL, WebGL-Check
+│   ├── lib/                    # Helfer: Animation, Skin-URL, Rüstung, Capes, WebGL-Check
 │   └── styles/index.css
 ├── scripts/
-│   └── process-screenshots.mjs # Screenshots → WebP
+│   ├── process-screenshots.mjs # Screenshots → WebP
+│   └── extract-armor-textures.mjs # Rüstungs-Texturen aus dem Spiel kopieren
 ├── docs/                       # Build-Ausgabe (für GitHub Pages committet)
 ├── vite.config.js
 └── vercel.json

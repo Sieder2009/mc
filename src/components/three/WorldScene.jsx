@@ -8,6 +8,7 @@ import SakuraTree from "./world/SakuraTree.jsx";
 import Horizon from "./world/Horizon.jsx";
 import PetalDrift from "./world/PetalDrift.jsx";
 import { mulberry32, range } from "./world/rng.js";
+import { onWorldPausedChange } from "../../lib/world.js";
 
 // The whole page is one long walk: the hero looks at the torii gate from the
 // front, scrolling carries the camera through it and on down a stone path
@@ -335,6 +336,8 @@ function WorldContents({ lite, dpr, setDpr, dprTop, onReady, onGiveUp }) {
 export default function WorldScene({ lite = false, onReady, onLost, onRestored, onGiveUp }) {
   const dprTop = lite ? 1 : Math.min(1.6, typeof window === "undefined" ? 1 : window.devicePixelRatio || 1);
   const [dpr, setDpr] = useState(dprTop);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => onWorldPausedChange(setPaused), []);
   // Unmounting a Canvas force-loses its context, which fires webglcontextlost on
   // the dying canvas: events from a scene that is already gone must not count.
   const alive = useRef(true);
@@ -350,6 +353,7 @@ export default function WorldScene({ lite = false, onReady, onLost, onRestored, 
       flat
       resize={{ scroll: false }}
       dpr={dpr}
+      frameloop={paused ? "never" : "always"}
       camera={{ position: [0, HERO.y, HERO.dist], fov: HERO.fov, near: 0.1, far: 500 }}
       gl={{ antialias: !lite, alpha: false, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {

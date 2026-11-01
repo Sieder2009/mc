@@ -36,6 +36,20 @@ export const content = {
   // Ohne Namen zeigt der Viewer automatisch den Standard-Skin (Steve).
   minecraftName: "affenmal",
 
+  // Deine UUID ändert sich nie — sie wird angezeigt, falls die Live-Abfrage
+  // (playerdb.co) mal nicht klappt.
+  minecraftUuid: "db0ae0a9-91c1-4ab3-a59c-2003ee0fd313",
+
+  // Capes, die du besitzt. Mojang verrät öffentlich nur das, das du gerade
+  // trägst — alle anderen trägst du hier ein, z. B. "Pan", "Vanilla",
+  // "Cherry Blossom", "15th Anniversary" (Liste: src/lib/capes.js).
+  capes: ["Migrator"],
+
+  // Rüstung, die Besucher zuerst am Skin sehen (sie können sie selbst ändern).
+  // material: null (keine) | "leather" | "chainmail" | "iron" | "gold" |
+  // "diamond" | "netherite" | "copper"; trimPattern z. B. "coast", "wild"; trimMaterial z. B. "gold".
+  armor: { material: null, trimPattern: null, trimMaterial: "gold" },
+
   // --- Meine Welt --------------------------------------------------------
   world: {
     name: "SiggidyWorld", // Name der Welt

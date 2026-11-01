@@ -44,3 +44,13 @@ export const worldSettled = new Promise((resolve) => {
   release = resolve;
 });
 export const settleWorld = () => release();
+
+// A full-screen dialog (the skin wardrobe) covers the world anyway. Pausing it
+// meanwhile keeps two WebGL scenes from sharing the GPU — on a weak device that
+// would trip the frame-rate governor and drop the world for good.
+const pauseListeners = new Set();
+export const setWorldPaused = (paused) => pauseListeners.forEach((listener) => listener(paused));
+export const onWorldPausedChange = (listener) => {
+  pauseListeners.add(listener);
+  return () => pauseListeners.delete(listener);
+};

@@ -1793,3 +1793,398 @@ html.world-on .btn--secondary {
 html.world-on .section-heading h2 {
   font-size: clamp(2.1rem, 5.2vw, 3.8rem);
 }
+
+/* ==========================================================================
+   Wardrobe — armor stand + profile dialog for the hero skin
+   ========================================================================== */
+.skin-panel--hero .skin-panel__side {
+  max-width: 440px;
+}
+
+.skin-panel--hero .skin-panel__controls {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pixelated {
+  image-rendering: pixelated;
+}
+
+.wardrobe {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.wardrobe__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(24, 20, 15, 0.78);
+}
+
+.wardrobe__dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  width: min(880px, 100%);
+  max-height: min(640px, calc(100dvh - 2rem));
+  background: var(--c-panel);
+  border: var(--line-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.wardrobe__close {
+  z-index: 2;
+}
+
+.wardrobe__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: var(--space-2);
+  background: var(--c-bg-alt);
+  border-right: var(--line-soft);
+}
+
+/* !important: three sets inline pixel sizes on the canvas (renderer.setSize) */
+.wardrobe__canvas {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 52vh;
+  aspect-ratio: 300 / 420;
+  touch-action: none;
+  cursor: grab;
+}
+
+.wardrobe__stage-hint {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--c-ink-soft);
+}
+
+.wardrobe__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.wardrobe__title {
+  margin: 0 3rem 0.6rem 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  overflow-wrap: anywhere;
+}
+
+.wardrobe__tabs {
+  display: flex;
+  gap: 0.3rem;
+  border-bottom: var(--line-soft);
+}
+
+.wardrobe__tab {
+  padding: 0.5em 1em;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--c-ink-soft);
+  cursor: pointer;
+}
+
+.wardrobe__tab[aria-selected="true"] {
+  color: var(--c-ink);
+  border-bottom-color: var(--c-red);
+}
+
+.wardrobe__tabpanel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) 0;
+}
+
+.wardrobe-group {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.wardrobe-group:disabled {
+  opacity: 0.45;
+}
+
+.wardrobe-group--inline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wardrobe-group__label {
+  display: flex;
+  gap: 0.5em;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+  padding: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--c-red-dark);
+}
+
+.wardrobe-group--inline .wardrobe-group__label {
+  margin: 0;
+}
+
+.wardrobe-group__value {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--c-ink-soft);
+}
+
+.mc-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mc-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  background: #8b8b8b;
+  border: 2px solid;
+  border-color: #373737 #fff #fff #373737;
+  cursor: pointer;
+}
+
+.mc-option:hover {
+  background: #a0a0a0;
+}
+
+.mc-option:has(input:checked) {
+  background: #c6c6c6;
+  outline: 2px solid var(--c-red);
+  outline-offset: 1px;
+}
+
+.mc-option:has(input:focus-visible),
+.cape-option:has(input:focus-visible) {
+  outline: 2px solid var(--c-ink);
+  outline-offset: 2px;
+}
+
+.mc-option[data-disabled],
+.cape-option[data-disabled] {
+  cursor: not-allowed;
+}
+
+.wardrobe-color {
+  width: 42px;
+  height: 32px;
+  padding: 0;
+  border: var(--line);
+  background: none;
+  cursor: pointer;
+}
+
+.wardrobe-link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  color: var(--c-ink-soft);
+  cursor: pointer;
+}
+
+.wardrobe-profile__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: var(--space-2);
+}
+
+.wardrobe-profile__head img {
+  border: var(--line);
+}
+
+.wardrobe-profile__edition,
+.wardrobe-note,
+.wardrobe-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--c-ink-soft);
+}
+
+.wardrobe-note {
+  margin-bottom: var(--space-1);
+}
+
+.wardrobe-hint {
+  margin-bottom: 0.5rem;
+}
+
+.wardrobe-facts {
+  margin: 0 0 var(--space-2);
+}
+
+.wardrobe-facts__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: var(--line-soft);
+  font-size: 0.85rem;
+}
+
+.wardrobe-facts dt {
+  font-weight: 700;
+}
+
+.wardrobe-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.wardrobe-facts__code {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.wardrobe-copy {
+  padding: 0.15em 0.7em;
+  border: var(--line);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wardrobe-copy:hover {
+  background: var(--c-ink);
+  color: var(--c-panel);
+}
+
+.cape-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.cape-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 84px;
+  padding: 0.5rem 0.3rem;
+  border: var(--line-soft);
+  border-radius: var(--radius-md);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.cape-option:has(input:checked) {
+  border-color: var(--c-red);
+  box-shadow: inset 0 0 0 1px var(--c-red);
+}
+
+/* front of a 64×32 cape texture (x 1–11, y 1–17), scaled ×4 */
+.cape-option__thumb {
+  width: 40px;
+  height: 64px;
+  background: var(--c-bg-alt) no-repeat -4px -4px / 256px 128px;
+  image-rendering: pixelated;
+}
+
+.cape-option__thumb--none {
+  background-image: none;
+  border: 1.5px dashed var(--c-ink-soft);
+}
+
+.cape-option__badge {
+  padding: 0 0.5em;
+  border-radius: 999px;
+  background: var(--c-ink);
+  color: var(--c-panel);
+  font-size: 0.62rem;
+}
+
+.wardrobe-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.wardrobe-links a {
+  color: var(--c-red-dark);
+}
+
+@media (max-width: 720px) {
+  .wardrobe {
+    padding: 0.5rem;
+  }
+
+  .wardrobe__dialog {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .wardrobe__stage {
+    padding: 0.5rem;
+    border-right: 0;
+    border-bottom: var(--line-soft);
+  }
+
+  .wardrobe__canvas {
+    width: auto !important;
+    height: 30vh !important;
+  }
+
+  .wardrobe__stage-hint {
+    display: none;
+  }
+
+  .wardrobe-facts__row {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+
+  .mc-option {
+    width: 38px;
+    height: 38px;
+  }
+}
