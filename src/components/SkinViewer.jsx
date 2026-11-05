@@ -26,7 +26,7 @@ function isShown(object) {
   return true;
 }
 
-export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedCapes, armor: defaultArmor }) {
+export default function SkinViewer({ minecraftName, minecraftUuid, minecraftCreated, capes: ownedCapes, armor: defaultArmor }) {
   const canvasRef = useRef(null);
   const profileBtnRef = useRef(null);
   const openerRef = useRef(null);
@@ -45,6 +45,7 @@ export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedC
   const capeHash = capeChoice === undefined ? wornCape : capeChoice;
   const capes = useMemo(() => listCapes(ownedCapes, wornCape), [ownedCapes, wornCape]);
   const [wardrobeTab, setWardrobeTab] = useState(null); // null = closed
+  const [focusSearch, setFocusSearch] = useState(false); // opened to look up one's own profile
 
   usePlayerOutfit(viewer, { outfit, capeHash });
 
@@ -57,14 +58,17 @@ export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedC
     }
   }
 
-  const openWardrobe = useCallback((tab) => {
+  const openWardrobe = useCallback((tab, { search = false } = {}) => {
     openerRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : profileBtnRef.current;
+    setFocusSearch(search);
     setWardrobeTab(tab);
   }, []);
 
   const closeWardrobe = useCallback(() => {
     setWardrobeTab(null);
-    openerRef.current?.focus();
+    // preventScroll: on a short screen the button can be off-screen, and scrolling
+    // to it would fade the hero out (with the model just dressed) on closing
+    openerRef.current?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
@@ -151,6 +155,7 @@ export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedC
     const onUp = (e) => {
       if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && hitsPlayer(e)) {
         openerRef.current = profileBtnRef.current;
+        setFocusSearch(false);
         setWardrobeTab("profile");
       }
       down = null;
@@ -215,7 +220,10 @@ export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedC
               ref={profileBtnRef}
               onClick={() => openWardrobe("profile")}
             >
-              Profil
+              Mein Profil
+            </button>
+            <button type="button" className="btn btn--small" onClick={() => openWardrobe("profile", { search: true })}>
+              Dein Profil
             </button>
           </div>
         )}
@@ -226,7 +234,9 @@ export default function SkinViewer({ minecraftName, minecraftUuid, capes: ownedC
           tab={wardrobeTab}
           onTabChange={setWardrobeTab}
           onClose={closeWardrobe}
+          focusSearch={focusSearch}
           minecraftName={minecraftName}
+          minecraftCreated={minecraftCreated}
           profileStatus={profileStatus}
           profile={profile}
           capes={capes}

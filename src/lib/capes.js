@@ -47,7 +47,7 @@ export function listCapes(ownedNames, activeHash) {
       return { name: key ?? name, hash, active: Boolean(hash) && hash === activeHash };
     });
   if (activeHash && !capes.some((c) => c.hash === activeHash)) {
-    capes.unshift({ name: capeNameForHash(activeHash) ?? "Aktuelles Cape", hash: activeHash, active: true });
+    capes.unshift({ name: capeNameForHash(activeHash) ?? "Cape", hash: activeHash, active: true });
   }
   return capes;
 }

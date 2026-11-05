@@ -1,65 +1,72 @@
-import { useEffect, useState } from "react";
-import { capeHashFromUrl } from "../lib/capes.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { dashedUuid, isPlayerQuery, lookupProfile, trimmedUuid } from "../lib/profile.js";
 
-// Mojang's own profile API sends no CORS headers, so the browser can't ask it
-// directly — playerdb.co relays the same public data (UUID, skin, the cape
-// currently worn) with CORS and https texture links.
-const PROFILE_API = "https://playerdb.co/api/player/minecraft/";
-
-function dashedUuid(raw) {
-  const id = (raw || "").replace(/-/g, "").toLowerCase();
-  if (id.length !== 32) return raw || "";
-  return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
-}
-
-function skinModel(properties) {
-  try {
-    const textures = properties.find((p) => p.name === "textures");
-    const decoded = JSON.parse(atob(textures.value));
-    return decoded.textures?.SKIN?.metadata?.model === "slim" ? "slim" : "classic";
-  } catch {
-    return null;
-  }
-}
-
-export function useMinecraftProfile(minecraftName, fallbackUuid) {
+export function useMinecraftProfile(minecraftName, minecraftUuid) {
   const name = (minecraftName || "").trim();
-  const [state, setState] = useState({ status: name ? "loading" : "idle", profile: null });
+  // by UUID where it's known: it never changes, a name can
+  const query = minecraftUuid ? trimmedUuid(minecraftUuid) : name;
+  const [state, setState] = useState({ status: query ? "loading" : "idle", profile: null });
 
   useEffect(() => {
-    if (!name) {
+    if (!query) {
       setState({ status: "idle", profile: null });
       return;
     }
     const controller = new AbortController();
     setState({ status: "loading", profile: null });
 
-    fetch(PROFILE_API + encodeURIComponent(name), { signal: controller.signal })
-      .then((res) => res.json())
-      .then((json) => {
-        const player = json?.data?.player;
-        if (!json?.success || !player) throw new Error("Profil nicht gefunden");
-        setState({
-          status: "ready",
-          profile: {
-            name: player.username,
-            uuid: dashedUuid(player.id || player.raw_id),
-            skinUrl: player.skin_texture || null,
-            capeHash: player.cape_texture ? capeHashFromUrl(player.cape_texture) : null,
-            model: skinModel(player.properties || []),
-          },
-        });
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        setState({ status: "error", profile: null });
-      });
+    lookupProfile(query, controller.signal).then(
+      (profile) => {
+        if (!controller.signal.aborted) setState({ status: profile ? "ready" : "error", profile });
+      },
+      () => {
+        if (!controller.signal.aborted) setState({ status: "error", profile: null });
+      }
+    );
 
     return () => controller.abort();
-  }, [name]);
+  }, [query]);
 
-  // The UUID never changes, so content.js can carry it as a fallback when the
-  // lookup service is down.
-  const profile = state.profile ?? (fallbackUuid ? { name, uuid: dashedUuid(fallbackUuid), skinUrl: null, capeHash: null, model: null } : null);
+  // content.js carries the UUID as a fallback for when both lookup services are down
+  const profile = state.profile ?? (minecraftUuid ? { name, uuid: dashedUuid(minecraftUuid), skinUrl: null, capeHash: null, model: null } : null);
   return { status: state.status, profile };
+}
+
+const NO_SEARCH = { status: "idle", query: "", player: null };
+
+// A visitor's search. The last player found stays in `player` while the next search
+// runs, and when that one finds nothing.
+export function usePlayerSearch() {
+  const [state, setState] = useState(NO_SEARCH);
+  const controllerRef = useRef(null);
+
+  useEffect(() => () => controllerRef.current?.abort(), []);
+
+  const search = useCallback((query) => {
+    controllerRef.current?.abort();
+    if (!isPlayerQuery(query)) {
+      setState((s) => ({ ...s, status: "invalid", query }));
+      return;
+    }
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setState((s) => ({ ...s, status: "loading", query }));
+
+    lookupProfile(query, controller.signal).then(
+      (player) => {
+        if (controller.signal.aborted) return;
+        setState((s) => (player ? { status: "ready", query, player } : { ...s, status: "notfound", query }));
+      },
+      () => {
+        if (!controller.signal.aborted) setState((s) => ({ ...s, status: "error", query }));
+      }
+    );
+  }, []);
+
+  const reset = useCallback(() => {
+    controllerRef.current?.abort();
+    setState(NO_SEARCH);
+  }, []);
+
+  return { ...state, search, reset };
 }

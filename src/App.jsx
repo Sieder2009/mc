@@ -37,17 +37,17 @@ export default function App() {
   let level = 0;
   const weltLevel = ++level;
   const statistikLevel = ++level;
-  const modrinthLevel = ++level;
   const serverLevel = serverAddress ? ++level : null;
   const kontaktLevel = ++level;
+  const modrinthLevel = ++level;
 
   const dotItems = [
     { href: "#top", label: "Profil" },
     { href: "#welt", label: "Welt" },
     { href: "#statistik", label: "Statistik" },
-    { href: "#modrinth", label: "Modrinth" },
     ...(serverAddress ? [{ href: "#server", label: "Server" }] : []),
     { href: "#kontakt", label: "Kontakt" },
+    { href: "#modrinth", label: "Modrinth" },
   ];
 
   return (
@@ -81,10 +81,6 @@ export default function App() {
 
         <StatsSection stats={content.stats} level={statistikLevel} />
 
-        <SceneWindow />
-
-        <ModrinthSection username={content.modrinthUsername} level={modrinthLevel} />
-
         {serverAddress && (
           <>
             <SceneWindow />
@@ -95,6 +91,10 @@ export default function App() {
         <SceneWindow />
 
         <ContactSection contact={content.contact} level={kontaktLevel} />
+
+        <SceneWindow />
+
+        <ModrinthSection username={content.modrinthUsername} level={modrinthLevel} />
 
         <SceneWindow size="end" />
       </main>

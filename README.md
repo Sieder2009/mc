@@ -20,7 +20,9 @@ einen Steinpfad unter blühenden Kirschbäumen entlang, während die Inhalte dar
 - **Rüstung anlegen** — Material (Leder bis Netherit und Kupfer), einzelne Teile, alle
   Schmiedevorlagen und Besatz-Materialien, mit den Original-Texturen aus dem Spiel.
 - **Profil** — ein Klick auf den Charakter zeigt UUID, Skin-Modell und meine Capes zum
-  Anprobieren (live über playerdb.co, weil Mojangs API im Browser nicht erreichbar ist).
+  Anprobieren. Besucher können über „Dein Profil“ ihren eigenen Namen oder ihre UUID suchen
+  und sehen dann ihren Skin am Modell, auch mit Rüstung (live über playerdb.co und
+  minetools.eu, weil Mojangs API im Browser nicht erreichbar ist).
 - **Meine Welt** — Steckbrief der Welt (Version, Modloader, Spielmodus), eine Zeitleiste mit
   den Meilensteinen und eine Galerie der Bauwerke mit Lightbox und Koordinaten.
 - **Statistiken** — hochzählende Kennzahlen wie Spieltage und Anzahl Bauwerke.

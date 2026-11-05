@@ -5,7 +5,7 @@ import MagneticLink from "./MagneticLink.jsx";
 import { gsap, ScrollTrigger, EASE, prefersReducedMotion } from "../lib/animation.js";
 
 export default function Hero({ content }) {
-  const { name, slogan, hero, links, minecraftName, minecraftUuid, capes, armor } = content;
+  const { name, slogan, hero, links, minecraftName, minecraftUuid, minecraftCreated, capes, armor } = content;
   const showVideo = hero.video && !prefersReducedMotion;
   const showImage = !showVideo && hero.image;
   const showKanji = !showVideo && !showImage;
@@ -120,7 +120,13 @@ export default function Hero({ content }) {
             </div>
           )}
 
-          <SkinViewer minecraftName={minecraftName} minecraftUuid={minecraftUuid} capes={capes} armor={armor} />
+          <SkinViewer
+            minecraftName={minecraftName}
+            minecraftUuid={minecraftUuid}
+            minecraftCreated={minecraftCreated}
+            capes={capes}
+            armor={armor}
+          />
 
           {hero.rightText && (
             <div className="hero__flank hero__flank--right">

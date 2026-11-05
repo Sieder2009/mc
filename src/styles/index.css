@@ -677,8 +677,10 @@ h3::before {
   text-align: center;
 }
 
+/* two rows on purpose: the model's controls, then the two profiles */
 .skin-panel--hero .skin-panel__controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
   justify-content: center;
 }
 
@@ -1802,7 +1804,6 @@ html.world-on .section-heading h2 {
 }
 
 .skin-panel--hero .skin-panel__controls {
-  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
@@ -1831,13 +1832,18 @@ html.world-on .section-heading h2 {
   z-index: 1;
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  /* a row that may shrink: on a short screen the panel scrolls, it isn't cut off */
+  grid-template-rows: minmax(0, 1fr);
   width: min(880px, 100%);
-  max-height: min(640px, calc(100dvh - 2rem));
+  /* a fixed height: picking an option must not re-centre the dialog and move
+     the other options out from under the mouse */
+  height: min(560px, calc(100dvh - 2rem));
   background: var(--c-panel);
   border: var(--line-soft);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  overflow: clip; /* unlike hidden, a focused element can't scroll it out of place */
 }
 
 .wardrobe__close {
@@ -1850,16 +1856,17 @@ html.world-on .section-heading h2 {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  min-height: 0;
   padding: var(--space-2);
   background: var(--c-bg-alt);
   border-right: var(--line-soft);
 }
 
-/* !important: three sets inline pixel sizes on the canvas (renderer.setSize) */
+/* !important: three sets inline pixel sizes on the canvas (renderer.setSize).
+   Limited through the width so the model keeps its proportions on short screens. */
 .wardrobe__canvas {
-  width: 100% !important;
+  width: min(100%, 37vh) !important;
   height: auto !important;
-  max-height: 52vh;
   aspect-ratio: 300 / 420;
   touch-action: none;
   cursor: grab;
@@ -1879,10 +1886,18 @@ html.world-on .section-heading h2 {
 }
 
 .wardrobe__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   margin: 0 3rem 0.6rem 0;
   font-family: var(--font-display);
   font-size: 1.3rem;
   overflow-wrap: anywhere;
+}
+
+.wardrobe__title img {
+  flex: none;
+  border: var(--line);
 }
 
 .wardrobe__tabs {
@@ -1925,14 +1940,8 @@ html.world-on .section-heading h2 {
   min-width: 0;
 }
 
-.wardrobe-group:disabled {
-  opacity: 0.45;
-}
-
-.wardrobe-group--inline {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+.wardrobe-group[data-idle]:not(:hover, :focus-within) .mc-options {
+  opacity: 0.7;
 }
 
 .wardrobe-group__label {
@@ -1948,10 +1957,6 @@ html.world-on .section-heading h2 {
   color: var(--c-red-dark);
 }
 
-.wardrobe-group--inline .wardrobe-group__label {
-  margin: 0;
-}
-
 .wardrobe-group__value {
   font-weight: 600;
   letter-spacing: 0;
@@ -1965,7 +1970,10 @@ html.world-on .section-heading h2 {
   gap: 4px;
 }
 
+/* position: keeps the visually hidden input inside its option; focusing it on
+   click would otherwise scroll the panel towards wherever it ended up */
 .mc-option {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1975,6 +1983,11 @@ html.world-on .section-heading h2 {
   border: 2px solid;
   border-color: #373737 #fff #fff #373737;
   cursor: pointer;
+  user-select: none;
+}
+
+.mc-option img {
+  pointer-events: none;
 }
 
 .mc-option:hover {
@@ -1993,14 +2006,20 @@ html.world-on .section-heading h2 {
   outline-offset: 2px;
 }
 
-.mc-option[data-disabled],
 .cape-option[data-disabled] {
   cursor: not-allowed;
 }
 
+.wardrobe-dye {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.4rem;
+}
+
 .wardrobe-color {
   width: 42px;
-  height: 32px;
+  height: 42px;
   padding: 0;
   border: var(--line);
   background: none;
@@ -2018,18 +2037,55 @@ html.world-on .section-heading h2 {
   cursor: pointer;
 }
 
-.wardrobe-profile__head {
+.player-search {
+  margin-bottom: 0.4rem;
+}
+
+.player-search__head {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
-.wardrobe-profile__head img {
+.player-search__head .wardrobe-group__label {
+  margin-bottom: 0;
+}
+
+.player-search__row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* 16px: iOS zooms the page in when an input with smaller text gets the focus */
+.player-search__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35em 0.7em;
   border: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--c-bg);
+  font: inherit;
+  font-size: 16px;
+  color: var(--c-ink);
 }
 
-.wardrobe-profile__edition,
+.player-search__input::placeholder {
+  color: var(--c-ink-soft);
+}
+
+/* clear of the input's focus ring */
+.player-search__status {
+  margin: 0.55rem 0 0;
+}
+
+.player-search__status[data-problem] {
+  font-weight: 600;
+  color: var(--c-red-dark);
+}
+
 .wardrobe-note,
 .wardrobe-hint {
   margin: 0;
@@ -2132,18 +2188,11 @@ html.world-on .section-heading h2 {
   border: 1.5px dashed var(--c-ink-soft);
 }
 
-.cape-option__badge {
-  padding: 0 0.5em;
-  border-radius: 999px;
-  background: var(--c-ink);
-  color: var(--c-panel);
-  font-size: 0.62rem;
-}
-
 .wardrobe-links {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+  margin: 0;
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -2160,7 +2209,7 @@ html.world-on .section-heading h2 {
   .wardrobe__dialog {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    max-height: calc(100dvh - 1rem);
+    height: min(900px, calc(100dvh - 1rem));
   }
 
   .wardrobe__stage {

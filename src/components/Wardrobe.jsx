@@ -3,13 +3,17 @@ import { createPortal } from "react-dom";
 import { SkinViewer as SkinView3D } from "skinview3d";
 import { useLenis } from "./SmoothScrollProvider.jsx";
 import { usePlayerOutfit } from "../hooks/usePlayerOutfit.js";
+import { usePlayerSearch } from "../hooks/useMinecraftProfile.js";
 import { prefersReducedMotion } from "../lib/animation.js";
 import { setWorldPaused } from "../lib/world.js";
 import { skinUrlFor } from "../lib/skin.js";
-import { capeTextureUrl } from "../lib/capes.js";
+import { capeNameForHash, capeTextureUrl, listCapes } from "../lib/capes.js";
+import { trimmedUuid } from "../lib/profile.js";
 import {
+  ALL_PIECES,
   ARMOR_MATERIALS,
   ARMOR_SLOTS,
+  DEFAULT_ARMOR_MATERIAL,
   DEFAULT_LEATHER_COLOR,
   TRIM_MATERIALS,
   TRIM_PATTERNS,
@@ -19,6 +23,7 @@ import {
 
 const DEFAULT_SKIN_URL = skinUrlFor("MHF_Steve");
 const BARRIER_ICON = "assets/mc/items/barrier.png";
+const SKIN_MODELS = { slim: "slim", classic: "default" };
 const TABS = [
   { id: "profile", label: "Profil" },
   { id: "armor", label: "Rüstung" },
@@ -36,7 +41,9 @@ export default function Wardrobe({
   tab,
   onTabChange,
   onClose,
+  focusSearch,
   minecraftName,
+  minecraftCreated,
   profileStatus,
   profile,
   capes,
@@ -48,10 +55,23 @@ export default function Wardrobe({
 }) {
   const dialogRef = useRef(null);
   const closeBtnRef = useRef(null);
+  const searchInputRef = useRef(null);
   const lenisRef = useLenis();
 
+  // A visitor's search only changes this dialog (which forgets it on closing):
+  // the hero keeps showing the owner, with the owner's cape.
+  const search = usePlayerSearch();
+  const [visitorCape, setVisitorCape] = useState({ uuid: null, hash: null });
+  const visitor = search.player && trimmedUuid(search.player.uuid) !== trimmedUuid(profile?.uuid) ? search.player : null;
+  const visitorCapeHash = visitor && (visitorCape.uuid === visitor.uuid ? visitorCape.hash : visitor.capeHash);
+  const ownerSkinUrl = minecraftName ? skinUrlFor(minecraftName) : DEFAULT_SKIN_URL;
+
+  const shownProfile = visitor ?? profile;
+  const shownUuid = trimmedUuid(shownProfile?.uuid);
+  const name = shownProfile?.name || minecraftName || "Steve";
+
   useEffect(() => {
-    closeBtnRef.current?.focus();
+    (focusSearch ? searchInputRef : closeBtnRef).current?.focus();
     document.body.style.overflow = "hidden";
     lenisRef?.current?.stop();
     setWorldPaused(true);
@@ -82,7 +102,7 @@ export default function Wardrobe({
       lenisRef?.current?.start();
       setWorldPaused(false);
     };
-  }, [onClose, lenisRef]);
+  }, [onClose, lenisRef, focusSearch]);
 
   function onTabKeyDown(e) {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
@@ -91,8 +111,6 @@ export default function Wardrobe({
     onTabChange(next.id);
     document.getElementById(`wardrobe-tab-${next.id}`)?.focus();
   }
-
-  const name = profile?.name || minecraftName || "Steve";
 
   // Rendered into <body>: the hero content sits inside a transformed element,
   // which would otherwise pin this fixed overlay to the hero instead of the
@@ -118,10 +136,22 @@ export default function Wardrobe({
           &times;
         </button>
 
-        <WardrobeStage minecraftName={minecraftName} outfit={outfit} capeHash={capeHash} />
+        <WardrobeStage
+          skinUrl={visitor ? (visitor.skinUrl ?? skinUrlFor(shownUuid)) : ownerSkinUrl}
+          model={visitor?.model}
+          outfit={outfit}
+          capeHash={visitor ? visitorCapeHash : capeHash}
+        />
 
         <div className="wardrobe__panel">
           <h2 id="wardrobeTitle" className="wardrobe__title">
+            <img
+              className="pixelated"
+              src={`https://mc-heads.net/avatar/${encodeURIComponent(shownUuid || name)}/64`}
+              width="32"
+              height="32"
+              alt=""
+            />
             {name}
           </h2>
           <div className="wardrobe__tabs" role="tablist" aria-label="Ansicht">
@@ -152,11 +182,16 @@ export default function Wardrobe({
             {tab === "profile" ? (
               <ProfileTab
                 name={name}
-                status={profileStatus}
-                profile={profile}
-                capes={capes}
-                capeHash={capeHash}
-                onCapeChange={onCapeChange}
+                status={visitor ? "ready" : profileStatus}
+                profile={shownProfile}
+                created={visitor ? null : minecraftCreated}
+                capes={visitor ? listCapes([], visitor.capeHash) : capes}
+                capeHash={visitor ? visitorCapeHash : capeHash}
+                onCapeChange={visitor ? (hash) => setVisitorCape({ uuid: visitor.uuid, hash }) : onCapeChange}
+                search={search}
+                searchInputRef={searchInputRef}
+                visitor={visitor}
+                ownerName={profile?.name || minecraftName}
               />
             ) : (
               <ArmorTab armor={armor} onArmorChange={onArmorChange} />
@@ -171,7 +206,7 @@ export default function Wardrobe({
 
 /* --- the big model on the left ------------------------------------------------ */
 
-function WardrobeStage({ minecraftName, outfit, capeHash }) {
+function WardrobeStage({ skinUrl, model, outfit, capeHash }) {
   const canvasRef = useRef(null);
   const [viewer, setViewer] = useState(null);
 
@@ -191,18 +226,35 @@ function WardrobeStage({ minecraftName, outfit, capeHash }) {
     const stopRotate = () => (v.autoRotate = false);
     canvas.addEventListener("pointerdown", stopRotate);
 
-    const name = (minecraftName || "").trim();
-    const fallback = () => v.loadSkin(DEFAULT_SKIN_URL).catch(() => {});
-    if (name) v.loadSkin(skinUrlFor(name)).catch(fallback);
-    else fallback();
-
     setViewer(v);
     return () => {
       canvas.removeEventListener("pointerdown", stopRotate);
       setViewer(null);
       v.dispose();
     };
-  }, [minecraftName]);
+  }, []);
+
+  // Loaded here rather than via viewer.loadSkin(url): with quick searches, an older
+  // skin could otherwise finish last and win.
+  useEffect(() => {
+    if (!viewer) return;
+    let cancelled = false;
+    const show = (url, onFail) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        if (!cancelled) viewer.loadSkin(img, { model: SKIN_MODELS[model] ?? "auto-detect" });
+      };
+      img.onerror = () => {
+        if (!cancelled) onFail?.();
+      };
+      img.src = url;
+    };
+    show(skinUrl, () => show(DEFAULT_SKIN_URL));
+    return () => {
+      cancelled = true;
+    };
+  }, [viewer, skinUrl, model]);
 
   usePlayerOutfit(viewer, { outfit, capeHash });
 
@@ -250,23 +302,78 @@ function CopyButton({ text, label }) {
   );
 }
 
-function ProfileTab({ name, status, profile, capes, capeHash, onCapeChange }) {
+function PlayerSearch({ search, inputRef, visitor, ownerName }) {
+  const [draft, setDraft] = useState(search.query);
+
+  function submit(e) {
+    e.preventDefault();
+    const query = draft.trim();
+    if (query) search.search(query);
+  }
+
+  function backToOwner() {
+    search.reset();
+    setDraft("");
+    inputRef.current?.focus();
+  }
+
+  const messages = {
+    loading: "Suche …",
+    invalid: "Das passt nicht: Namen haben bis zu 16 Buchstaben, Zahlen oder _, eine UUID hat 32 Zeichen.",
+    notfound: `Kein Java-Spieler „${search.query}“ gefunden. Bedrock-Namen gehen hier nicht.`,
+    error: "Die Suche ist gerade nicht erreichbar. Versuch es gleich noch einmal.",
+    ready: visitor && `Profil von ${visitor.name}`,
+  };
+  const problem = ["invalid", "notfound", "error"].includes(search.status);
+
+  return (
+    <form className="player-search" role="search" onSubmit={submit} noValidate>
+      <div className="player-search__head">
+        <label className="wardrobe-group__label" htmlFor="playerSearch">
+          Dein Profil ansehen
+        </label>
+        {visitor && (
+          <button type="button" className="wardrobe-link-btn" onClick={backToOwner}>
+            Zurück zu {ownerName}
+          </button>
+        )}
+      </div>
+      <div className="player-search__row">
+        <input
+          ref={inputRef}
+          id="playerSearch"
+          className="player-search__input"
+          type="text"
+          enterKeyHint="search"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={64}
+          placeholder="Minecraft-Name oder UUID"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button type="submit" className="btn btn--small">
+          Suchen
+        </button>
+      </div>
+      <p className="wardrobe-hint player-search__status" role="status" data-problem={problem || undefined}>
+        {messages[search.status] || "Nur Java Edition. Die Suche läuft über playerdb.co und minetools.eu."}
+      </p>
+    </form>
+  );
+}
+
+function ProfileTab({ name, status, profile, created, capes, capeHash, onCapeChange, search, searchInputRef, visitor, ownerName }) {
   const uuid = profile?.uuid;
   const worn = capes.find((c) => c.active);
+  const wornName = worn && capeNameForHash(worn.hash);
   const nameMcUrl = `https://namemc.com/profile/${encodeURIComponent(uuid || name)}`;
 
   return (
     <div className="wardrobe-profile">
-      <div className="wardrobe-profile__head">
-        <img
-          className="pixelated"
-          src={`https://mc-heads.net/avatar/${encodeURIComponent(name)}/64`}
-          width="48"
-          height="48"
-          alt=""
-        />
-        <p className="wardrobe-profile__edition">Minecraft: Java Edition</p>
-      </div>
+      <PlayerSearch search={search} inputRef={searchInputRef} visitor={visitor} ownerName={ownerName} />
 
       {status === "loading" && <p className="wardrobe-note">Lade Profil von Mojang …</p>}
       {status === "error" && (
@@ -294,60 +401,79 @@ function ProfileTab({ name, status, profile, capes, capeHash, onCapeChange }) {
             <dt>Ohne Striche</dt>
             <dd>
               <code className="wardrobe-facts__code">{uuid.replace(/-/g, "")}</code>
+              <CopyButton text={uuid.replace(/-/g, "")} label="UUID ohne Striche" />
             </dd>
-          </div>
-        )}
-        {profile?.model && (
-          <div className="wardrobe-facts__row">
-            <dt>Skin-Modell</dt>
-            <dd>{profile.model === "slim" ? "Schlank (Alex, 3 px Arme)" : "Klassisch (Steve, 4 px Arme)"}</dd>
           </div>
         )}
         {status === "ready" && (
           <div className="wardrobe-facts__row">
-            <dt>Trägt gerade</dt>
-            <dd>{worn ? `${worn.name}-Cape` : "kein Cape"}</dd>
+            <dt>Skin-Modell</dt>
+            <dd>
+              {!profile?.model
+                ? "Standard-Skin"
+                : profile.model === "slim"
+                  ? "Schlank (Alex, 3 px Arme)"
+                  : "Klassisch (Steve, 4 px Arme)"}
+            </dd>
+          </div>
+        )}
+        {created && (
+          <div className="wardrobe-facts__row">
+            <dt>Konto erstellt</dt>
+            <dd>{created}</dd>
           </div>
         )}
       </dl>
 
       <fieldset className="wardrobe-group">
         <legend className="wardrobe-group__label">
-          Capes <span className="wardrobe-group__value">{capes.length}</span>
+          Capes{" "}
+          {status === "ready" && (
+            <span className="wardrobe-group__value">
+              Trägt gerade {!worn ? "kein Cape" : wornName ? `${wornName}-Cape` : "ein Cape"}
+            </span>
+          )}
         </legend>
-        <p className="wardrobe-hint">Antippen, um ein Cape am Modell anzuprobieren.</p>
-        <div className="cape-list">
-          {capes.map((cape) => (
-            <label key={cape.name} className="cape-option" data-disabled={!cape.hash || undefined}>
-              <input
-                type="radio"
-                name="wardrobe-cape"
-                className="sr-only"
-                checked={Boolean(cape.hash) && capeHash === cape.hash}
-                disabled={!cape.hash}
-                onChange={() => onCapeChange(cape.hash)}
-              />
-              <span
-                className="cape-option__thumb"
-                style={cape.hash ? { backgroundImage: `url(${capeTextureUrl(cape.hash)})` } : undefined}
-                aria-hidden="true"
-              />
-              <span className="cape-option__name">{cape.name}</span>
-              {cape.active && <span className="cape-option__badge">getragen</span>}
-            </label>
-          ))}
-          <label className="cape-option">
-            <input
-              type="radio"
-              name="wardrobe-cape"
-              className="sr-only"
-              checked={!capeHash}
-              onChange={() => onCapeChange(null)}
-            />
-            <span className="cape-option__thumb cape-option__thumb--none" aria-hidden="true" />
-            <span className="cape-option__name">Ohne Cape</span>
-          </label>
-        </div>
+        {(!visitor || capes.length > 0) && (
+          <>
+            <p className="wardrobe-hint">
+              {visitor
+                ? "Mojang zeigt öffentlich nur das Cape, das gerade getragen wird."
+                : "Antippen, um ein Cape am Modell anzuprobieren."}
+            </p>
+            <div className="cape-list">
+              {capes.map((cape) => (
+                <label key={cape.name} className="cape-option" data-disabled={!cape.hash || undefined}>
+                  <input
+                    type="radio"
+                    name="wardrobe-cape"
+                    className="sr-only"
+                    checked={Boolean(cape.hash) && capeHash === cape.hash}
+                    disabled={!cape.hash}
+                    onChange={() => onCapeChange(cape.hash)}
+                  />
+                  <span
+                    className="cape-option__thumb"
+                    style={cape.hash ? { backgroundImage: `url(${capeTextureUrl(cape.hash)})` } : undefined}
+                    aria-hidden="true"
+                  />
+                  <span className="cape-option__name">{cape.name}</span>
+                </label>
+              ))}
+              <label className="cape-option">
+                <input
+                  type="radio"
+                  name="wardrobe-cape"
+                  className="sr-only"
+                  checked={!capeHash}
+                  onChange={() => onCapeChange(null)}
+                />
+                <span className="cape-option__thumb cape-option__thumb--none" aria-hidden="true" />
+                <span className="cape-option__name">Ohne Cape</span>
+              </label>
+            </div>
+          </>
+        )}
       </fieldset>
 
       <p className="wardrobe-links">
@@ -359,6 +485,11 @@ function ProfileTab({ name, status, profile, capes, capeHash, onCapeChange }) {
             Skin-Datei (PNG)
           </a>
         )}
+        {worn?.hash && (
+          <a href={capeTextureUrl(worn.hash)} target="_blank" rel="noopener">
+            Cape-Datei (PNG)
+          </a>
+        )}
       </p>
     </div>
   );
@@ -366,20 +497,41 @@ function ProfileTab({ name, status, profile, capes, capeHash, onCapeChange }) {
 
 /* --- armor tab ---------------------------------------------------------------- */
 
-function IconOption({ name, checked, onChange, icon, label, type = "radio", disabled }) {
+const noop = () => {};
+
+function IconOption({ name, checked, onPick, icon, label, type = "radio" }) {
   return (
-    <label className="mc-option" title={label} data-disabled={disabled || undefined}>
-      <input
-        type={type}
-        name={name}
-        className="sr-only"
-        checked={checked}
-        disabled={disabled}
-        onChange={onChange}
-      />
-      <img className="pixelated" src={icon} width="32" height="32" alt="" />
+    <label className="mc-option" title={label}>
+      {/* onClick, not onChange: a radio that is already selected fires no change,
+          and picking it again has to work (the remembered template after taking
+          the armor off, the default gold trim on a first visit). */}
+      <input type={type} name={name} className="sr-only" checked={checked} onClick={onPick} onChange={noop} />
+      {/* not draggable: a mouse moving a few px during the click would drag the
+          icon instead, and the click would be lost */}
+      <img className="pixelated" src={icon} width="32" height="32" alt="" draggable={false} />
       <span className="sr-only">{label}</span>
     </label>
+  );
+}
+
+// The icons say little on their own, so the heading names the one under the mouse.
+function OptionGroup({ label, value, idle, children }) {
+  const [hovered, setHovered] = useState(null);
+
+  function onPointerOver(e) {
+    const title = e.pointerType === "mouse" && e.target.closest(".mc-option")?.title;
+    if (title) setHovered(title);
+  }
+
+  return (
+    <fieldset className="wardrobe-group" data-idle={idle || undefined}>
+      <legend className="wardrobe-group__label">
+        {label} <span className="wardrobe-group__value">{hovered ?? value}</span>
+      </legend>
+      <div className="mc-options" onPointerOver={onPointerOver} onPointerLeave={() => setHovered(null)}>
+        {children}
+      </div>
+    </fieldset>
   );
 }
 
@@ -388,120 +540,107 @@ function ArmorTab({ armor, onArmorChange }) {
   const material = ARMOR_MATERIALS.find((m) => m.id === armor.material);
   const pattern = TRIM_PATTERNS.find((p) => p.id === armor.trimPattern);
   const trimMaterial = TRIM_MATERIALS.find((m) => m.id === armor.trimMaterial);
-  const noArmor = !material;
+  const shownMaterial = armor.material ?? DEFAULT_ARMOR_MATERIAL;
+
+  // Nothing in here is locked, and every pick shows on the model: a template or
+  // trim material picked while nothing is worn puts on a full set along with it.
+  const dressed = Boolean(material) && ARMOR_SLOTS.some((s) => armor.pieces[s.id]);
+  const dress = dressed ? {} : { material: shownMaterial, pieces: ALL_PIECES };
+
+  function pickPiece(id, on) {
+    if (material) set({ pieces: { ...armor.pieces, [id]: on } });
+    else set({ material: shownMaterial, pieces: Object.fromEntries(ARMOR_SLOTS.map((s) => [s.id, s.id === id])) });
+  }
 
   return (
     <div className="wardrobe-armor">
-      <fieldset className="wardrobe-group">
-        <legend className="wardrobe-group__label">
-          Material <span className="wardrobe-group__value">{material?.name ?? "Keine Rüstung"}</span>
-        </legend>
-        <div className="mc-options">
+      <OptionGroup label="Material" value={material?.name ?? "Keine Rüstung"}>
+        <IconOption
+          name="armor-material"
+          checked={!material}
+          onPick={() => set({ material: null })}
+          icon={BARRIER_ICON}
+          label="Keine Rüstung"
+        />
+        {ARMOR_MATERIALS.map((m) => (
           <IconOption
+            key={m.id}
             name="armor-material"
-            checked={noArmor}
-            onChange={() => set({ material: null })}
-            icon={BARRIER_ICON}
-            label="Keine Rüstung"
+            checked={armor.material === m.id}
+            onPick={() => set({ material: m.id, pieces: dressed ? armor.pieces : ALL_PIECES })}
+            icon={armorItemIcon(m.id, "chest")}
+            label={m.name}
           />
-          {ARMOR_MATERIALS.map((m) => (
-            <IconOption
-              key={m.id}
-              name="armor-material"
-              checked={armor.material === m.id}
-              onChange={() => set({ material: m.id })}
-              icon={armorItemIcon(m.id, "chest")}
-              label={m.name}
+        ))}
+        {armor.material === "leather" && (
+          <span className="wardrobe-dye">
+            <input
+              type="color"
+              className="wardrobe-color"
+              title="Lederfarbe"
+              aria-label="Lederfarbe"
+              value={armor.color}
+              onChange={(e) => set({ color: e.target.value })}
             />
-          ))}
-        </div>
-      </fieldset>
+            {armor.color !== DEFAULT_LEATHER_COLOR && (
+              <button type="button" className="wardrobe-link-btn" onClick={() => set({ color: DEFAULT_LEATHER_COLOR })}>
+                Ungefärbt
+              </button>
+            )}
+          </span>
+        )}
+      </OptionGroup>
 
-      <fieldset className="wardrobe-group" disabled={noArmor}>
-        <legend className="wardrobe-group__label">Teile</legend>
-        <div className="mc-options">
-          {ARMOR_SLOTS.map((s) => (
-            <IconOption
-              key={s.id}
-              type="checkbox"
-              name={`armor-piece-${s.id}`}
-              checked={!noArmor && armor.pieces[s.id]}
-              disabled={noArmor}
-              onChange={(e) => set({ pieces: { ...armor.pieces, [s.id]: e.target.checked } })}
-              icon={armorItemIcon(material?.id ?? "iron", s.id)}
-              label={armorItemName(material?.id ?? "iron", s.id)}
-            />
-          ))}
-        </div>
-      </fieldset>
-
-      {armor.material === "leather" && (
-        <div className="wardrobe-group wardrobe-group--inline">
-          <label className="wardrobe-group__label" htmlFor="armorColor">
-            Lederfarbe
-          </label>
-          <input
-            id="armorColor"
-            type="color"
-            className="wardrobe-color"
-            value={armor.color}
-            onChange={(e) => set({ color: e.target.value })}
-          />
-          {armor.color !== DEFAULT_LEATHER_COLOR && (
-            <button type="button" className="wardrobe-link-btn" onClick={() => set({ color: DEFAULT_LEATHER_COLOR })}>
-              Ungefärbt
-            </button>
-          )}
-        </div>
-      )}
-
-      <fieldset className="wardrobe-group" disabled={noArmor}>
-        <legend className="wardrobe-group__label">
-          Schmiedevorlage <span className="wardrobe-group__value">{pattern?.name ?? "Kein Besatz"}</span>
-        </legend>
-        <div className="mc-options">
+      <OptionGroup label="Teile">
+        {ARMOR_SLOTS.map((s) => (
           <IconOption
-            name="armor-trim"
-            checked={!pattern}
-            disabled={noArmor}
-            onChange={() => set({ trimPattern: null })}
-            icon={BARRIER_ICON}
-            label="Kein Besatz"
+            key={s.id}
+            type="checkbox"
+            name={`armor-piece-${s.id}`}
+            checked={Boolean(material) && armor.pieces[s.id]}
+            onPick={(e) => pickPiece(s.id, e.target.checked)}
+            icon={armorItemIcon(shownMaterial, s.id)}
+            label={armorItemName(shownMaterial, s.id)}
           />
-          {TRIM_PATTERNS.map((p) => (
-            <IconOption
-              key={p.id}
-              name="armor-trim"
-              checked={armor.trimPattern === p.id}
-              disabled={noArmor}
-              onChange={() => set({ trimPattern: p.id })}
-              icon={p.icon}
-              label={p.name}
-            />
-          ))}
-        </div>
-      </fieldset>
+        ))}
+      </OptionGroup>
 
-      <fieldset className="wardrobe-group" disabled={noArmor || !pattern}>
-        <legend className="wardrobe-group__label">
-          Besatz-Material <span className="wardrobe-group__value">{trimMaterial?.name}</span>
-        </legend>
-        <div className="mc-options">
-          {TRIM_MATERIALS.map((m) => (
-            <IconOption
-              key={m.id}
-              name="armor-trim-material"
-              checked={armor.trimMaterial === m.id}
-              disabled={noArmor || !pattern}
-              onChange={() => set({ trimMaterial: m.id })}
-              icon={m.icon}
-              label={m.name}
-            />
-          ))}
-        </div>
-      </fieldset>
+      <OptionGroup label="Schmiedevorlage" value={pattern?.name ?? "Kein Besatz"}>
+        <IconOption
+          name="armor-trim"
+          checked={!pattern}
+          onPick={() => set({ trimPattern: null })}
+          icon={BARRIER_ICON}
+          label="Kein Besatz"
+        />
+        {TRIM_PATTERNS.map((p) => (
+          <IconOption
+            key={p.id}
+            name="armor-trim"
+            checked={armor.trimPattern === p.id}
+            onPick={() => set({ ...dress, trimPattern: p.id })}
+            icon={p.icon}
+            label={p.name}
+          />
+        ))}
+      </OptionGroup>
 
-      {!noArmor && (
+      {/* idle: no template yet, so this colour is not on the model — picking one
+          here starts with the first template */}
+      <OptionGroup label="Besatz-Material" value={trimMaterial?.name} idle={!pattern}>
+        {TRIM_MATERIALS.map((m) => (
+          <IconOption
+            key={m.id}
+            name="armor-trim-material"
+            checked={armor.trimMaterial === m.id}
+            onPick={() => set({ ...dress, trimMaterial: m.id, trimPattern: armor.trimPattern ?? TRIM_PATTERNS[0].id })}
+            icon={m.icon}
+            label={m.name}
+          />
+        ))}
+      </OptionGroup>
+
+      {material && (
         <button type="button" className="btn btn--small" onClick={() => set({ material: null })}>
           Rüstung ablegen
         </button>

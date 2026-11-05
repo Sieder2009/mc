@@ -37,8 +37,12 @@ export const content = {
   minecraftName: "affenmal",
 
   // Deine UUID ändert sich nie — sie wird angezeigt, falls die Live-Abfrage
-  // (playerdb.co) mal nicht klappt.
+  // (playerdb.co, minetools.eu) mal nicht klappt.
   minecraftUuid: "db0ae0a9-91c1-4ab3-a59c-2003ee0fd313",
+
+  // Wann dein Konto erstellt wurde, z. B. "12.03.2019". Mojang gibt das nicht
+  // öffentlich heraus, deshalb steht es nur hier. Leer = die Zeile fehlt im Profil.
+  minecraftCreated: "",
 
   // Capes, die du besitzt. Mojang verrät öffentlich nur das, das du gerade
   // trägst — alle anderen trägst du hier ein, z. B. "Pan", "Vanilla",

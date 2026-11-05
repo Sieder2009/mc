@@ -8,6 +8,9 @@ const ASSETS = "assets/mc/";
 
 export const DEFAULT_LEATHER_COLOR = "#a06540";
 
+// Put on when someone picks a piece or a template while wearing nothing.
+export const DEFAULT_ARMOR_MATERIAL = "iron";
+
 export const ARMOR_MATERIALS = [
   { id: "leather", name: "Leder", items: ["Lederkappe", "Lederjacke", "Lederhose", "Lederstiefel"] },
   { id: "chainmail", name: "Kette", items: ["Kettenhaube", "Kettenhemd", "Kettenhose", "Kettenstiefel"] },
@@ -112,14 +115,19 @@ function hexToRgb(hex) {
 // Fetches everything one armor piece needs; drawing happens afterwards in one
 // go so a half-loaded set never shows.
 async function loadPiece(layer, { material, trim }) {
-  const trimPalette = trim && (DARKER_PALETTES.has(material) && trim.material === material ? `${trim.material}_darker` : trim.material);
-  const [base, overlay, pattern, key, palette] = await Promise.all([
+  const [base, overlay] = await Promise.all([
     loadImage(`armor/${layer}/${material}.png`),
     material === "leather" ? loadImage(`armor/${layer}/leather_overlay.png`) : null,
-    trim ? loadImage(`trims/${layer}/${trim.pattern}.png`) : null,
-    trim ? loadImage("trims/palettes/trim_palette.png") : null,
-    trim ? loadImage(`trims/palettes/${trimPalette}.png`) : null,
   ]);
+  if (!trim) return { base, overlay };
+
+  const trimPalette = DARKER_PALETTES.has(material) && trim.material === material ? `${trim.material}_darker` : trim.material;
+  // a trim texture that won't load costs the trim, not the whole armor piece
+  const [pattern, key, palette] = await Promise.all([
+    loadImage(`trims/${layer}/${trim.pattern}.png`),
+    loadImage("trims/palettes/trim_palette.png"),
+    loadImage(`trims/palettes/${trimPalette}.png`),
+  ]).catch(() => []);
   return { base, overlay, pattern, key, palette };
 }
 
@@ -145,18 +153,21 @@ function paintPiece(ctx, { base, overlay, pattern, key, palette }, color) {
   if (pattern) {
     // Trim textures are drawn in the 8 greys of trim_palette.png; each grey
     // becomes the colour at the same position in the material's palette.
+    // Nearest grey, not exact: some browsers (Brave) add noise to canvas reads,
+    // and a key colour that is off by one would leave its pixels uncoloured.
     const keyPx = pixelsOf(key).data;
     const palPx = pixelsOf(palette).data;
-    const swap = new Map();
-    for (let i = 0; i < keyPx.length; i += 4) {
-      swap.set((keyPx[i] << 16) | (keyPx[i + 1] << 8) | keyPx[i + 2], [palPx[i], palPx[i + 1], palPx[i + 2]]);
-    }
     const trim = pixelsOf(pattern);
     const d = trim.data;
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
-      const to = swap.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
-      if (to) [d[i], d[i + 1], d[i + 2]] = to;
+      let nearest = 0;
+      for (let k = 4; k < keyPx.length; k += 4) {
+        if (Math.abs(keyPx[k] - d[i]) < Math.abs(keyPx[nearest] - d[i])) nearest = k;
+      }
+      d[i] = palPx[nearest];
+      d[i + 1] = palPx[nearest + 1];
+      d[i + 2] = palPx[nearest + 2];
     }
     const layer = document.createElement("canvas");
     layer.width = trim.width;
@@ -303,11 +314,13 @@ export class ArmorRig {
 
 /* --- outfit settings ------------------------------------------------------- */
 
+export const ALL_PIECES = { head: true, chest: true, legs: true, feet: true };
+
 // What the armor editor stores — one material for the whole set; pieces can
 // be switched off one by one.
 export const EMPTY_ARMOR = {
   material: null,
-  pieces: { head: true, chest: true, legs: true, feet: true },
+  pieces: ALL_PIECES,
   color: DEFAULT_LEATHER_COLOR,
   trimPattern: null,
   trimMaterial: "gold",
