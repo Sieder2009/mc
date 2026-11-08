@@ -10,11 +10,11 @@ import { skinUrlFor } from "../lib/skin.js";
 import { capeNameForHash, capeTextureUrl, listCapes } from "../lib/capes.js";
 import { trimmedUuid } from "../lib/profile.js";
 import {
-  ALL_PIECES,
   ARMOR_MATERIALS,
   ARMOR_SLOTS,
   DEFAULT_ARMOR_MATERIAL,
   DEFAULT_LEATHER_COLOR,
+  EMPTY_ARMOR,
   TRIM_MATERIALS,
   TRIM_PATTERNS,
   armorItemIcon,
@@ -62,6 +62,8 @@ export default function Wardrobe({
   // the hero keeps showing the owner, with the owner's cape.
   const search = usePlayerSearch();
   const [visitorCape, setVisitorCape] = useState({ uuid: null, hash: null });
+  // Up here so switching to the profile tab and back keeps the piece in hand.
+  const [armorSlot, setArmorSlot] = useState(() => ARMOR_SLOTS.find((s) => armor[s.id].material)?.id ?? ARMOR_SLOTS[0].id);
   const visitor = search.player && trimmedUuid(search.player.uuid) !== trimmedUuid(profile?.uuid) ? search.player : null;
   const visitorCapeHash = visitor && (visitorCape.uuid === visitor.uuid ? visitorCape.hash : visitor.capeHash);
   const ownerSkinUrl = minecraftName ? skinUrlFor(minecraftName) : DEFAULT_SKIN_URL;
@@ -194,7 +196,7 @@ export default function Wardrobe({
                 ownerName={profile?.name || minecraftName}
               />
             ) : (
-              <ArmorTab armor={armor} onArmorChange={onArmorChange} />
+              <ArmorTab armor={armor} onArmorChange={onArmorChange} slotId={armorSlot} onSlotChange={setArmorSlot} />
             )}
           </div>
         </div>
@@ -499,23 +501,35 @@ function ProfileTab({ name, status, profile, created, capes, capeHash, onCapeCha
 
 const noop = () => {};
 
-function IconOption({ name, checked, onPick, icon, label, type = "radio" }) {
+function IconOption({ name, checked, onPick, icon, label, empty, badge }) {
   return (
-    <label className="mc-option" title={label}>
+    <label className="mc-option" title={label} data-empty={empty || undefined}>
       {/* onClick, not onChange: a radio that is already selected fires no change,
           and picking it again has to work (the remembered template after taking
-          the armor off, the default gold trim on a first visit). */}
-      <input type={type} name={name} className="sr-only" checked={checked} onClick={onPick} onChange={noop} />
+          the piece off, the default gold trim on a first visit). */}
+      <input type="radio" name={name} className="sr-only" checked={checked} onClick={onPick} onChange={noop} />
       {/* not draggable: a mouse moving a few px during the click would drag the
           icon instead, and the click would be lost */}
       <img className="pixelated" src={icon} width="32" height="32" alt="" draggable={false} />
+      {badge && <img className="mc-option__badge pixelated" src={badge} width="16" height="16" alt="" draggable={false} />}
       <span className="sr-only">{label}</span>
     </label>
   );
 }
 
-// The icons say little on their own, so the heading names the one under the mouse.
-function OptionGroup({ label, value, idle, children }) {
+function OptionGroup({ label, columns, idle, children }) {
+  return (
+    <fieldset className="wardrobe-group" data-idle={idle || undefined}>
+      <legend className="wardrobe-group__label">{label}</legend>
+      <div className="mc-options" style={{ "--columns": columns }}>
+        {children}
+      </div>
+    </fieldset>
+  );
+}
+
+function ArmorTab({ armor, onArmorChange, slotId, onSlotChange }) {
+  // The icons say little on their own, so the line below names the one under the mouse.
   const [hovered, setHovered] = useState(null);
 
   function onPointerOver(e) {
@@ -523,128 +537,136 @@ function OptionGroup({ label, value, idle, children }) {
     if (title) setHovered(title);
   }
 
-  return (
-    <fieldset className="wardrobe-group" data-idle={idle || undefined}>
-      <legend className="wardrobe-group__label">
-        {label} <span className="wardrobe-group__value">{hovered ?? value}</span>
-      </legend>
-      <div className="mc-options" onPointerOver={onPointerOver} onPointerLeave={() => setHovered(null)}>
-        {children}
-      </div>
-    </fieldset>
-  );
-}
+  const piece = armor[slotId];
+  const material = ARMOR_MATERIALS.find((m) => m.id === piece.material);
+  const pattern = TRIM_PATTERNS.find((p) => p.id === piece.trimPattern);
+  const trimMaterial = TRIM_MATERIALS.find((m) => m.id === piece.trimMaterial);
+  const summary = material
+    ? [armorItemName(material.id, slotId), pattern?.name, pattern && trimMaterial?.name].filter(Boolean).join(" · ")
+    : `${ARMOR_SLOTS.find((s) => s.id === slotId).name}: nichts angelegt`;
 
-function ArmorTab({ armor, onArmorChange }) {
-  const set = (patch) => onArmorChange({ ...armor, ...patch });
-  const material = ARMOR_MATERIALS.find((m) => m.id === armor.material);
-  const pattern = TRIM_PATTERNS.find((p) => p.id === armor.trimPattern);
-  const trimMaterial = TRIM_MATERIALS.find((m) => m.id === armor.trimMaterial);
-  const shownMaterial = armor.material ?? DEFAULT_ARMOR_MATERIAL;
+  const set = (patch) => onArmorChange({ ...armor, [slotId]: { ...piece, ...patch } });
 
   // Nothing in here is locked, and every pick shows on the model: a template or
-  // trim material picked while nothing is worn puts on a full set along with it.
-  const dressed = Boolean(material) && ARMOR_SLOTS.some((s) => armor.pieces[s.id]);
-  const dress = dressed ? {} : { material: shownMaterial, pieces: ALL_PIECES };
-
-  function pickPiece(id, on) {
-    if (material) set({ pieces: { ...armor.pieces, [id]: on } });
-    else set({ material: shownMaterial, pieces: Object.fromEntries(ARMOR_SLOTS.map((s) => [s.id, s.id === id])) });
-  }
+  // ore picked for an empty slot puts that one piece on along with it.
+  const dress = material ? {} : { material: DEFAULT_ARMOR_MATERIAL };
 
   return (
     <div className="wardrobe-armor">
-      <OptionGroup label="Material" value={material?.name ?? "Keine Rüstung"}>
-        <IconOption
-          name="armor-material"
-          checked={!material}
-          onPick={() => set({ material: null })}
-          icon={BARRIER_ICON}
-          label="Keine Rüstung"
-        />
-        {ARMOR_MATERIALS.map((m) => (
+      <div className="armor-flow" onPointerOver={onPointerOver} onPointerLeave={() => setHovered(null)}>
+        <OptionGroup label="Teil" columns={1}>
+          {ARMOR_SLOTS.map((s) => {
+            const worn = armor[s.id];
+            const trimmed = worn.material && worn.trimPattern;
+            return (
+              <IconOption
+                key={s.id}
+                name="armor-slot"
+                checked={slotId === s.id}
+                onPick={() => onSlotChange(s.id)}
+                icon={armorItemIcon(worn.material ?? DEFAULT_ARMOR_MATERIAL, s.id)}
+                empty={!worn.material}
+                badge={trimmed ? TRIM_MATERIALS.find((m) => m.id === worn.trimMaterial).icon : null}
+                label={worn.material ? armorItemName(worn.material, s.id) : `${s.name} (leer)`}
+              />
+            );
+          })}
+        </OptionGroup>
+
+        <OptionGroup label="Material" columns={2}>
           <IconOption
-            key={m.id}
             name="armor-material"
-            checked={armor.material === m.id}
-            onPick={() => set({ material: m.id, pieces: dressed ? armor.pieces : ALL_PIECES })}
-            icon={armorItemIcon(m.id, "chest")}
-            label={m.name}
+            checked={!material}
+            onPick={() => set({ material: null })}
+            icon={BARRIER_ICON}
+            label="Keine Rüstung"
           />
-        ))}
-        {armor.material === "leather" && (
-          <span className="wardrobe-dye">
-            <input
-              type="color"
-              className="wardrobe-color"
-              title="Lederfarbe"
-              aria-label="Lederfarbe"
-              value={armor.color}
-              onChange={(e) => set({ color: e.target.value })}
+          {ARMOR_MATERIALS.map((m) => (
+            <IconOption
+              key={m.id}
+              name="armor-material"
+              checked={piece.material === m.id}
+              onPick={() => set({ material: m.id })}
+              icon={armorItemIcon(m.id, slotId)}
+              label={armorItemName(m.id, slotId)}
             />
-            {armor.color !== DEFAULT_LEATHER_COLOR && (
-              <button type="button" className="wardrobe-link-btn" onClick={() => set({ color: DEFAULT_LEATHER_COLOR })}>
-                Ungefärbt
-              </button>
-            )}
-          </span>
-        )}
-      </OptionGroup>
+          ))}
+          {piece.material === "leather" && (
+            <span className="wardrobe-dye">
+              <input
+                type="color"
+                className="wardrobe-color"
+                title="Lederfarbe"
+                aria-label="Lederfarbe"
+                value={piece.color}
+                onChange={(e) => set({ color: e.target.value })}
+              />
+              {piece.color !== DEFAULT_LEATHER_COLOR && (
+                <button type="button" className="wardrobe-link-btn" onClick={() => set({ color: DEFAULT_LEATHER_COLOR })}>
+                  Ungefärbt
+                </button>
+              )}
+            </span>
+          )}
+        </OptionGroup>
 
-      <OptionGroup label="Teile">
-        {ARMOR_SLOTS.map((s) => (
+        <OptionGroup label="Schmiedevorlage" columns={4} idle={!material}>
           <IconOption
-            key={s.id}
-            type="checkbox"
-            name={`armor-piece-${s.id}`}
-            checked={Boolean(material) && armor.pieces[s.id]}
-            onPick={(e) => pickPiece(s.id, e.target.checked)}
-            icon={armorItemIcon(shownMaterial, s.id)}
-            label={armorItemName(shownMaterial, s.id)}
-          />
-        ))}
-      </OptionGroup>
-
-      <OptionGroup label="Schmiedevorlage" value={pattern?.name ?? "Kein Besatz"}>
-        <IconOption
-          name="armor-trim"
-          checked={!pattern}
-          onPick={() => set({ trimPattern: null })}
-          icon={BARRIER_ICON}
-          label="Kein Besatz"
-        />
-        {TRIM_PATTERNS.map((p) => (
-          <IconOption
-            key={p.id}
             name="armor-trim"
-            checked={armor.trimPattern === p.id}
-            onPick={() => set({ ...dress, trimPattern: p.id })}
-            icon={p.icon}
-            label={p.name}
+            checked={!pattern}
+            onPick={() => set({ trimPattern: null })}
+            icon={BARRIER_ICON}
+            label="Kein Besatz"
           />
-        ))}
-      </OptionGroup>
+          {TRIM_PATTERNS.map((p) => (
+            <IconOption
+              key={p.id}
+              name="armor-trim"
+              checked={piece.trimPattern === p.id}
+              onPick={() => set({ ...dress, trimPattern: p.id })}
+              icon={p.icon}
+              label={p.name}
+            />
+          ))}
+        </OptionGroup>
 
-      {/* idle: no template yet, so this colour is not on the model — picking one
-          here starts with the first template */}
-      <OptionGroup label="Besatz-Material" value={trimMaterial?.name} idle={!pattern}>
-        {TRIM_MATERIALS.map((m) => (
-          <IconOption
-            key={m.id}
-            name="armor-trim-material"
-            checked={armor.trimMaterial === m.id}
-            onPick={() => set({ ...dress, trimMaterial: m.id, trimPattern: armor.trimPattern ?? TRIM_PATTERNS[0].id })}
-            icon={m.icon}
-            label={m.name}
-          />
-        ))}
-      </OptionGroup>
+        {/* idle: no template yet, so this colour is not on the model — picking one
+            here starts with the first template */}
+        <OptionGroup label="Erz" columns={2} idle={!material || !pattern}>
+          {TRIM_MATERIALS.map((m) => (
+            <IconOption
+              key={m.id}
+              name="armor-trim-material"
+              checked={piece.trimMaterial === m.id}
+              onPick={() => set({ ...dress, trimMaterial: m.id, trimPattern: piece.trimPattern ?? TRIM_PATTERNS[0].id })}
+              icon={m.icon}
+              label={m.name}
+            />
+          ))}
+        </OptionGroup>
+      </div>
 
-      {material && (
-        <button type="button" className="btn btn--small" onClick={() => set({ material: null })}>
-          Rüstung ablegen
-        </button>
-      )}
+      <div className="armor-foot">
+        <p className="armor-info" role="status">
+          {hovered ?? summary}
+        </p>
+        <div className="armor-actions">
+          {material && (
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => onArmorChange(Object.fromEntries(ARMOR_SLOTS.map((s) => [s.id, piece])))}
+            >
+              Auf alle Teile
+            </button>
+          )}
+          {/* always there: a button that vanished on its own click would drop the
+              keyboard focus out of the dialog */}
+          <button type="button" className="btn btn--small" onClick={() => onArmorChange(EMPTY_ARMOR)}>
+            Alles ablegen
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

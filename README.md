@@ -17,8 +17,8 @@ einen Steinpfad unter blühenden Kirschbäumen entlang, während die Inhalte dar
   gebraucht wird, und auf Handys automatisch abgespeckt.
 - **3D-Skin-Viewer** — mein Minecraft-Skin (`affenmal`) zum Drehen, geladen über mc-heads.net,
   mit dem Cape, das ich gerade trage.
-- **Rüstung anlegen** — Material (Leder bis Netherit und Kupfer), einzelne Teile, alle
-  Schmiedevorlagen und Besatz-Materialien, mit den Original-Texturen aus dem Spiel.
+- **Rüstung anlegen** — jedes Teil einzeln: Teil wählen, dann Material (Leder bis Netherit
+  und Kupfer), Schmiedevorlage und Erz, mit den Original-Texturen aus dem Spiel.
 - **Profil** — ein Klick auf den Charakter zeigt UUID, Skin-Modell und meine Capes zum
   Anprobieren. Besucher können über „Dein Profil“ ihren eigenen Namen oder ihre UUID suchen
   und sehen dann ihren Skin am Modell, auch mit Rüstung (live über playerdb.co und

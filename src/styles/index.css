@@ -1831,7 +1831,8 @@ html.world-on .section-heading h2 {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  /* 498px: the four armor columns side by side; the model gives way first */
+  grid-template-columns: minmax(220px, 300px) minmax(498px, 1fr);
   /* a row that may shrink: on a short screen the panel scrolls, it isn't cut off */
   grid-template-rows: minmax(0, 1fr);
   width: min(880px, 100%);
@@ -1964,10 +1965,46 @@ html.world-on .section-heading h2 {
   color: var(--c-ink-soft);
 }
 
-.mc-options {
+/* left to right, next to the model: piece, its material, template, ore */
+.wardrobe-armor {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.armor-flow {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) 1.4rem;
+}
+
+.armor-flow .wardrobe-group {
+  margin: 0;
+}
+
+.mc-options {
+  display: grid;
+  grid-template-columns: repeat(var(--columns), max-content);
   gap: 4px;
+}
+
+/* pinned to the bottom, so a column getting taller can't move it */
+.armor-foot {
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.armor-info {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.armor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 /* position: keeps the visually hidden input inside its option; focusing it on
@@ -1990,6 +2027,17 @@ html.world-on .section-heading h2 {
   pointer-events: none;
 }
 
+/* an empty armor slot: the piece as a dark outline, like in the game's inventory */
+.mc-option[data-empty] img {
+  filter: brightness(0) opacity(0.3);
+}
+
+.mc-option__badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
 .mc-option:hover {
   background: #a0a0a0;
 }
@@ -2010,11 +2058,17 @@ html.world-on .section-heading h2 {
   cursor: not-allowed;
 }
 
+/* width 0 + min-width 100%: takes the column's width without ever widening it,
+   so the columns to its right stay put when leather is picked */
 .wardrobe-dye {
-  display: inline-flex;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  margin-left: 0.4rem;
+  gap: 0.25rem 0.5rem;
+  width: 0;
+  min-width: 100%;
+  margin-top: 0.25rem;
 }
 
 .wardrobe-color {
@@ -2201,7 +2255,7 @@ html.world-on .section-heading h2 {
   color: var(--c-red-dark);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .wardrobe {
     padding: 0.5rem;
   }
@@ -2235,5 +2289,22 @@ html.world-on .section-heading h2 {
   .mc-option {
     width: 38px;
     height: 38px;
+  }
+
+  /* no room to go sideways: the same steps from top to bottom, each one a row */
+  .armor-flow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mc-options {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .wardrobe-dye {
+    width: auto;
+    min-width: 0;
+    margin: 0 0 0 0.4rem;
   }
 }

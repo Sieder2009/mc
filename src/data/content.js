@@ -50,9 +50,10 @@ export const content = {
   capes: ["Migrator"],
 
   // Rüstung, die Besucher zuerst am Skin sehen (sie können sie selbst ändern).
-  // material: null (keine) | "leather" | "chainmail" | "iron" | "gold" |
-  // "diamond" | "netherite" | "copper"; trimPattern z. B. "coast", "wild"; trimMaterial z. B. "gold".
-  armor: { material: null, trimPattern: null, trimMaterial: "gold" },
+  // Jedes Teil einzeln (head, chest, legs, feet), fehlende Teile bleiben leer, z. B.
+  // legs: { material: "iron", trimPattern: "coast", trimMaterial: "gold" }
+  // material: "leather" | "chainmail" | "iron" | "gold" | "diamond" | "netherite" | "copper"
+  armor: {},
 
   // --- Meine Welt --------------------------------------------------------
   world: {

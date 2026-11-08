@@ -8,7 +8,7 @@ const ASSETS = "assets/mc/";
 
 export const DEFAULT_LEATHER_COLOR = "#a06540";
 
-// Put on when someone picks a piece or a template while wearing nothing.
+// Put on when someone picks a template or ore for an empty slot.
 export const DEFAULT_ARMOR_MATERIAL = "iron";
 
 export const ARMOR_MATERIALS = [
@@ -22,10 +22,10 @@ export const ARMOR_MATERIALS = [
 ];
 
 export const ARMOR_SLOTS = [
-  { id: "head", piece: "helmet" },
-  { id: "chest", piece: "chestplate" },
-  { id: "legs", piece: "leggings" },
-  { id: "feet", piece: "boots" },
+  { id: "head", piece: "helmet", name: "Helm" },
+  { id: "chest", piece: "chestplate", name: "Harnisch" },
+  { id: "legs", piece: "leggings", name: "Hose" },
+  { id: "feet", piece: "boots", name: "Stiefel" },
 ];
 
 export const TRIM_PATTERNS = [
@@ -314,41 +314,47 @@ export class ArmorRig {
 
 /* --- outfit settings ------------------------------------------------------- */
 
-export const ALL_PIECES = { head: true, chest: true, legs: true, feet: true };
-
-// What the armor editor stores — one material for the whole set; pieces can
-// be switched off one by one.
-export const EMPTY_ARMOR = {
+const EMPTY_PIECE = {
   material: null,
-  pieces: ALL_PIECES,
   color: DEFAULT_LEATHER_COLOR,
   trimPattern: null,
   trimMaterial: "gold",
 };
 
-export function normalizeArmor(value) {
+// What the armor editor stores: one entry per slot, each dressed on its own.
+// A slot with no material keeps its dye and trim for when it goes back on.
+export const EMPTY_ARMOR = Object.fromEntries(ARMOR_SLOTS.map((s) => [s.id, EMPTY_PIECE]));
+
+function normalizePiece(value) {
   const v = value && typeof value === "object" ? value : {};
   const known = (list, id) => (list.some((x) => x.id === id) ? id : null);
   return {
     material: known(ARMOR_MATERIALS, v.material),
-    pieces: { ...EMPTY_ARMOR.pieces, ...(v.pieces && typeof v.pieces === "object" ? v.pieces : {}) },
     color: /^#[0-9a-f]{6}$/i.test(v.color) ? v.color : DEFAULT_LEATHER_COLOR,
     trimPattern: known(TRIM_PATTERNS, v.trimPattern),
-    trimMaterial: known(TRIM_MATERIALS, v.trimMaterial) ?? EMPTY_ARMOR.trimMaterial,
+    trimMaterial: known(TRIM_MATERIALS, v.trimMaterial) ?? EMPTY_PIECE.trimMaterial,
   };
 }
 
+export function normalizeArmor(value) {
+  const v = value && typeof value === "object" ? value : {};
+  // Earlier versions stored one material for the whole set, with `pieces`
+  // switching slots off. Visitors can still have that saved.
+  const wholeSet = "material" in v || "pieces" in v;
+  return Object.fromEntries(
+    ARMOR_SLOTS.map(({ id }) => {
+      if (!wholeSet) return [id, normalizePiece(v[id])];
+      return [id, normalizePiece(v.pieces?.[id] === false ? { ...v, material: null } : v)];
+    })
+  );
+}
+
 export function armorToOutfit(armor) {
-  const outfit = {};
-  for (const { id } of ARMOR_SLOTS) {
-    outfit[id] =
-      armor.material && armor.pieces[id]
-        ? {
-            material: armor.material,
-            color: armor.color,
-            trim: armor.trimPattern ? { pattern: armor.trimPattern, material: armor.trimMaterial } : null,
-          }
-        : null;
-  }
-  return outfit;
+  return Object.fromEntries(
+    ARMOR_SLOTS.map(({ id }) => {
+      const { material, color, trimPattern, trimMaterial } = armor[id];
+      const trim = trimPattern ? { pattern: trimPattern, material: trimMaterial } : null;
+      return [id, material ? { material, color, trim } : null];
+    })
+  );
 }
